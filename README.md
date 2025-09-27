@@ -1,89 +1,197 @@
-# Task Master Pro
 
-Welcome to Task Master Pro, a comprehensive Java application designed to manage tasks efficiently. This project is developed and maintained by DevOps Shack, a YouTube channel dedicated to DevOps tutorials and best practices.
+# 🚀 End-to-End Monitoring Setup with Prometheus, Node Exporter, and Blackbox
 
-## Table of Contents
-- [Introduction](#introduction)
-- [Features](#features)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Contributing](#contributing)
-- [License](#license)
-- [Contact](#contact)
+This repository documents how to set up **application + monitoring** on two AWS EC2 instances:  
+- **Application Server** → Java + Maven + Demo Application + Node Exporter  
+- **Monitoring Server** → Prometheus + Blackbox Exporter + Grafana  
 
-## Introduction
+---
 
-Task Master Pro is a task management application built using Java. It provides a robust set of features to help users create, manage, and track tasks. This project aims to demonstrate best practices in Java development, including project structure, coding standards, and documentation.
+## 🔹 Step 1: Provision Infrastructure
+Launch **2 EC2 instances** (Ubuntu 22.04 LTS recommended):
 
-## Features
+- **Application Server**  
+  Runs a Java-based demo app and Node Exporter (for system metrics).  
 
-- Create, update, and delete tasks
-- Mark tasks as complete or incomplete
-- User authentication and authorization
+- **Monitoring Server**  
+  Runs Prometheus, Blackbox Exporter, and Grafana.  
 
-## Installation
+✅ Make sure to allow inbound ports in **Security Groups**:  
+`22 (SSH), 8080 (App), 9100 (Node Exporter), 9090 (Prometheus), 9115 (Blackbox), 3000 (Grafana)`
 
-### Prerequisites
+---
 
-- Java Development Kit (JDK) 17 or later
-- Apache Maven 3.6.0 or later
-- A database (H2)
+## 🔹 Step 2: Set Up Application Server
 
-### Steps
+Update system:
+```bash
+sudo apt update && sudo apt upgrade -y
+```
 
-1. Clone the repository:
+Install Java & Maven:
+```bash
+sudo apt install openjdk-17-jdk maven -y
+```
 
-    ```sh
-    git clone https://github.com/jaiswaladi246/Task-Master-Pro.git
-    cd Task-Master-Pro
-    ```
+Verify:
+```bash
+java -version
+mvn -v
+```
 
-2. Configure the database:
+Clone and build a sample Java app:
+```bash
+git clone https://github.com/spring-projects/spring-petclinic.git
+cd spring-petclinic
+mvn package
+```
 
-    Update the `application.properties` file with your database configuration.
+Run the app:
+```bash
+java -jar target/*.jar
+```
 
-3. Build the project:
+Check app in browser:  
+👉 `http://<Application-Server-Public-IP>:8080`
 
-    ```sh
-    mvn clean install
-    ```
+---
 
-4. Run the application:
+## 🔹 Step 3: Install Node Exporter (on Application Server)
 
-    ```sh
-    mvn spring-boot:run
-    ```
+Download Node Exporter:
+```bash
+cd /opt
+curl -LO https://github.com/prometheus/node_exporter/releases/download/v1.8.1/node_exporter-1.8.1.linux-amd64.tar.gz
+tar -xvzf node_exporter-1.8.1.linux-amd64.tar.gz
+mv node_exporter-1.8.1.linux-amd64 node_exporter
+cd node_exporter
+```
 
-## Usage
+Run Node Exporter:
+```bash
+./node_exporter &
+```
 
-Once the application is running, you can access it at `http://localhost:8080`. You can use the web interface to manage your tasks.
+Verify:
+👉 `http://<Application-Server-Public-IP>:9100/metrics`
 
-### Endpoints
+---
 
-- `/tasks` - View and manage tasks
-- `/tasks/{id}` - View, update, or delete a specific task
-- `/login` - User login
-- `/register` - User registration
+## 🔹 Step 4: Install Prometheus (on Monitoring Server)
 
-## Contributing
+```bash
+cd /opt
+curl -LO https://github.com/prometheus/prometheus/releases/download/v2.53.0/prometheus-2.53.0.linux-amd64.tar.gz
+tar -xvzf prometheus-2.53.0.linux-amd64.tar.gz
+mv prometheus-2.53.0.linux-amd64 prometheus
+cd prometheus
+```
 
-We welcome contributions to improve Task Master Pro. If you have a feature request, bug report, or improvement suggestion, please open an issue or submit a pull request.
+Run Prometheus:
+```bash
+./prometheus --config.file=prometheus.yml &
+```
 
-### Steps to Contribute
+Verify:
+👉 `http://<Monitoring-Server-Public-IP>:9090`
 
-1. Fork the repository
-2. Create a new branch (`git checkout -b feature-branch`)
-3. Make your changes
-4. Commit your changes (`git commit -m 'Add some feature'`)
-5. Push to the branch (`git push origin feature-branch`)
-6. Open a pull request
+---
 
-## License
+## 🔹 Step 5: Configure Prometheus (`prometheus.yml`)
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for more details.
+Edit `prometheus.yml`:
+```yaml
+global:
+  scrape_interval: 15s
 
-## Contact
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
 
-For any questions or inquiries, please reach out to us at [DevOps Shack](https://www.youtube.com/@devopsshack/videos)
+  - job_name: "node_exporter"
+    static_configs:
+      - targets: ["<Application-Server-Public-IP>:9100"]
 
-Happy coding!
+  - job_name: "blackbox"
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - http://<Application-Server-Public-IP>:8080
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: localhost:9115  # Blackbox Exporter
+```
+
+Restart Prometheus:
+```bash
+pkill prometheus
+./prometheus --config.file=prometheus.yml &
+```
+
+---
+
+## 🔹 Step 6: Install Blackbox Exporter (on Monitoring Server)
+
+```bash
+cd /opt
+curl -LO https://github.com/prometheus/blackbox_exporter/releases/download/v0.25.0/blackbox_exporter-0.25.0.linux-amd64.tar.gz
+tar -xvzf blackbox_exporter-0.25.0.linux-amd64.tar.gz
+mv blackbox_exporter-0.25.0.linux-amd64 blackbox_exporter
+cd blackbox_exporter
+./blackbox_exporter &
+```
+
+Verify:  
+👉 `http://<Monitoring-Server-Public-IP>:9115/probe?target=http://google.com&module=http_2xx`
+
+---
+
+## 🔹 Step 7: Install Grafana (on Monitoring Server)
+
+```bash
+sudo apt-get install -y apt-transport-https software-properties-common
+sudo mkdir -p /etc/apt/keyrings/
+wget -qO- https://packages.grafana.com/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/grafana.gpg
+echo "deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://packages.grafana.com/oss/deb stable main" | sudo tee /etc/apt/sources.list.d/grafana.list
+sudo apt update
+sudo apt install grafana -y
+sudo systemctl enable grafana-server
+sudo systemctl start grafana-server
+```
+
+Access Grafana:  
+👉 `http://<Monitoring-Server-Public-IP>:3000` (default user: `admin` / `admin`)
+
+---
+
+## 🔹 Step 8: Import Grafana Dashboards
+
+- **Node Exporter Dashboard** → Import ID `1860`  
+- **Blackbox Exporter Dashboard** → Import ID `9965`  
+
+Set refresh interval to `5s`.  
+
+---
+
+## 🔹 Step 9: Final Validation
+
+- **Node Exporter Metrics**: CPU, RAM, Disk usage from Application Server.  
+- **Blackbox Metrics**: App uptime, HTTP status, SSL expiry checks.  
+- **Grafana Dashboards**: Real-time visualization.  
+
+---
+
+## ✅ Key Notes
+- Open required ports in AWS Security Groups:
+  ```
+  22, 8080, 9100, 9090, 9115, 3000
+  ```
+- Run exporters and Prometheus with `nohup` or systemd for persistence.  
+- Use labels in `prometheus.yml` to distinguish multiple servers.  

@@ -41,8 +41,8 @@ mvn -v
 
 Clone and build a sample Java app:
 ```bash
-git clone https://github.com/spring-projects/spring-petclinic.git
-cd spring-petclinic
+git clone https://github.com/I-am-nk/Promethus-grafana-set-up.git
+cd Promethus-grafana-set-up
 mvn package
 ```
 
@@ -76,6 +76,7 @@ Verify:
 👉 `http://<Application-Server-Public-IP>:9100/metrics`
 
 ---
+<img width="1913" height="858" alt="image" src="https://github.com/user-attachments/assets/e2d68ba4-c1b0-44e5-8410-2e8d146042c2" />
 
 ## 🔹 Step 4: Install Prometheus (on Monitoring Server)
 
@@ -96,10 +97,14 @@ Verify:
 👉 `http://<Monitoring-Server-Public-IP>:9090`
 
 ---
+<img width="1915" height="985" alt="image" src="https://github.com/user-attachments/assets/1105a6b1-6bcd-485c-acd1-893b0b939720" />
 
 ## 🔹 Step 5: Configure Prometheus (`prometheus.yml`)
 
 Edit `prometheus.yml`:
+- a) Add the Blackbox Exporter target in Prometheus YAML and specify module as probe (for HTTP/HTTPS checks)
+- b) Add a job for Node Exporter with the Application Server’s IP and port 9100 
+- Note( change the < Application-Server-Public-IP > with your Ec2 Public IP )
 ```yaml
 global:
   scrape_interval: 15s
@@ -152,6 +157,7 @@ Verify:
 👉 `http://<Monitoring-Server-Public-IP>:9115/probe?target=http://google.com&module=http_2xx`
 
 ---
+<img width="1919" height="714" alt="image" src="https://github.com/user-attachments/assets/b1eb23f1-8dfb-4bde-95cb-100291a2de2a" />
 
 ## 🔹 Step 7: Install Grafana (on Monitoring Server)
 
@@ -170,6 +176,7 @@ Access Grafana:
 👉 `http://<Monitoring-Server-Public-IP>:3000` (default user: `admin` / `admin`)
 
 ---
+<img width="1919" height="920" alt="image" src="https://github.com/user-attachments/assets/4cfa1911-780b-4a35-a2c6-289b6bf62769" />
 
 ## 🔹 Step 8: Import Grafana Dashboards
 
@@ -187,6 +194,12 @@ Set refresh interval to `5s`.
 - **Grafana Dashboards**: Real-time visualization.  
 
 ---
+- Grafana Dashboards
+<img width="1919" height="972" alt="image" src="https://github.com/user-attachments/assets/99c69e3f-b7e1-45f0-b64c-62b5957cbb96" />
+
+- Blackbox Metrics
+<img width="1919" height="981" alt="image" src="https://github.com/user-attachments/assets/ea3b95fc-480b-401b-8ed4-88a9a6d4c274" />
+
 
 ## ✅ Key Notes
 - Open required ports in AWS Security Groups:
